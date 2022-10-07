@@ -35,7 +35,7 @@ def parse_arguments():
     parser.add_argument('--model_report', '--model-report',
                         help='Name for the file where theoretical analysis results are stored',
                         type=str,
-                        default='model_report.csv')
+                        default='model_report.xlsx')
 
     parser.add_argument('--per_layer_mode', '--per-layer-mode',
                         help='Enables collecting per-layer complexity metrics',
@@ -46,7 +46,7 @@ def parse_arguments():
                         help='File name for the per-layer complexity metrics. '
                              'Should be specified only when --per-layer-mode option' +
                              ' is used',
-                        default='per_layer_report.csv')
+                        default='per_layer_report.xlsx')
 
     parser.add_argument('--sparsity_ignored_layers', '--sparsity-ignored-layers',
                         help='Specifies ignored layers names separated by comma',

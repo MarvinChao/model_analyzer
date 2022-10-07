@@ -5,6 +5,7 @@ import csv
 import logging as log
 import os
 from typing import List, Tuple
+import pandas as pd
 
 from model_analyzer.layer_provider import LayerTypesManager, LayerType, Constant, Result, Parameter
 from model_analyzer.model_metadata import ModelMetaData
@@ -167,10 +168,10 @@ class ModelComputationalComplexity:
         log.info('Sparsity: %.4f%%', sparsity)
         log.info('Minimum memory consumption (MB): %.4f', min_mem_consumption)
         log.info('Maximum memory consumption (MB): %.4f', max_mem_consumption)
-        export_network_into_csv(g_flops, g_iops, total_params, sparsity, min_mem_consumption, max_mem_consumption,
+        export_network_into_xlsx(g_flops, g_iops, total_params, sparsity, min_mem_consumption, max_mem_consumption,
                                 net_precisions, output, file_name)
         if complexity:
-            self.export_layers_into_csv(output, complexity_filename)
+            self.export_layers_into_xlsx(output, complexity_filename)
 
     def export_layers_into_csv(self, output_dir: str, file_name: str):
         if output_dir:
@@ -201,6 +202,46 @@ class ModelComputationalComplexity:
                     cur_layer['output_blob'],
                 ])
         log.info('Complexity file name: %s', file_name)
+
+    def export_layers_into_xlsx(self, output_dir: str, file_name: str):
+        if output_dir:
+            file_name = os.path.join(output_dir, file_name)
+
+        layers_ids = self._model_metadata.ops_ids
+        try:
+            sorted_layers = sorted(self._computational_complexity.keys(), key=lambda x: layers_ids[x])
+        except (KeyError, TypeError):
+            sorted_layers = sorted(self._computational_complexity.keys())
+        core_layers = filter(lambda x: x not in self._input_names, sorted_layers)
+
+        Layers_DF = pd.DataFrame()
+        for layer_name in core_layers:
+            cur_layer = self._computational_complexity[layer_name]
+            if cur_layer['m_params'] == 0:
+                continue
+            cur_layer_info = [
+                    cur_layer['layer_type'],
+                    cur_layer['layer_name'],
+                    '{:.4f}'.format(float(cur_layer['g_flops'])),
+                    '{:.4f}'.format(float(cur_layer['g_iops'])),
+                    '{:.4f}'.format(float(cur_layer['m_params'])),
+                    cur_layer.get('layer_params'),
+                    cur_layer['input_blob'],
+                    cur_layer['output_blob'],
+                ]
+            if Layers_DF.index.empty:
+                Layers_DF = pd.DataFrame(cur_layer_info).transpose()
+            else:
+                Layers_DF.loc[len(Layers_DF.index)] = cur_layer_info
+
+            writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
+            Layers_DF.to_excel(writer, sheet_name='Summary', startrow=0, header=['LayerType', 'LayerName', 'GFLOPs', 'GIOPs', 'MParams', 'LayerParams', 'InputBlobs', 'OutputBlobs'], index=False)
+
+        # Improve Spreadsheet cosmetics
+        Layer_WS = writer.sheets['Summary']
+        Layer_WS.set_column(0, 7, 20)
+
+        writer.save()
 
     def get_ops(self, layer_provider: LayerType) -> int:
         try:
@@ -277,6 +318,23 @@ def export_network_into_csv(g_flops, g_iops, total_params, sparsity, min_mem_con
         )
     log.info('File name with network status information : %s', file_name)
 
+def export_network_into_xlsx(g_flops, g_iops, total_params, sparsity, min_mem_consumption, max_mem_consumption,
+                                    net_precisions, output_dir, file_name):
+    if output_dir:
+        file_name = os.path.join(output_dir, file_name)
+
+    Network_Info = [
+                f'{g_flops:.4f}', f'{g_iops:.4f}', f'{total_params:.4f}', f'{min_mem_consumption:.4f}',
+                f'{max_mem_consumption:.4f}', f'{sparsity:.4f}', net_precisions
+            ]
+    Network_DF = pd.DataFrame(Network_Info).transpose()
+    writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
+    Network_DF.to_excel(writer, sheet_name='Summary', startrow=0, header=['GFLOPs', 'GIOPs', 'MParams', 'MinMem', 'MaxMem', 'Sparsity', 'Precision'], index=False)
+    # Improve Spreadsheet cosmetics
+    Network_WS = writer.sheets['Summary']
+    Network_WS.set_column(0, 6, 20)
+
+    writer.save()
 
 def get_layer_params(layer_provider: LayerType) -> str:
     params = []
