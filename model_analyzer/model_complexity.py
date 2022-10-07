@@ -161,18 +161,14 @@ class ModelComputationalComplexity:
             if len(self._executable_precisions) == 1 else
             f'MIXED ({"-".join(sorted(self._executable_precisions))})'
         )
-        guessed_type = ModelTypeGuesser.get_model_type(self._model_metadata)
-        if guessed_type:
-            guessed_type = guessed_type.value
         log.info('GFLOPs: %.4f', g_flops)
         log.info('GIOPs: %.4f', g_iops)
         log.info('MParams: %.4f', total_params)
         log.info('Sparsity: %.4f%%', sparsity)
-        log.info('Minimum memory consumption: %.4f', min_mem_consumption)
-        log.info('Maximum memory consumption: %.4f', max_mem_consumption)
-        log.info('Guessed type: %s', guessed_type)
+        log.info('Minimum memory consumption (MB): %.4f', min_mem_consumption)
+        log.info('Maximum memory consumption (MB): %.4f', max_mem_consumption)
         export_network_into_csv(g_flops, g_iops, total_params, sparsity, min_mem_consumption, max_mem_consumption,
-                                net_precisions, output, file_name, guessed_type)
+                                net_precisions, output, file_name)
         if complexity:
             self.export_layers_into_csv(output, complexity_filename)
 
@@ -265,18 +261,18 @@ class ModelComputationalComplexity:
 
 # pylint: disable=too-many-arguments
 def export_network_into_csv(g_flops, g_iops, total_params, sparsity, min_mem_consumption, max_mem_consumption,
-                            net_precisions, output_dir, file_name, guessed_type):
+                            net_precisions, output_dir, file_name):
     if output_dir:
         file_name = os.path.join(output_dir, file_name)
     with open(file_name, mode='w') as info_file:
         info_writer = csv.writer(info_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         info_writer.writerow(
-            ['GFLOPs', 'GIOPs', 'MParams', 'MinMem', 'MaxMem', 'Sparsity', 'Precision', 'GuessedType']
+            ['GFLOPs', 'GIOPs', 'MParams', 'MinMem', 'MaxMem', 'Sparsity', 'Precision']
         )
         info_writer.writerow(
             [
                 f'{g_flops:.4f}', f'{g_iops:.4f}', f'{total_params:.4f}', f'{min_mem_consumption:.4f}',
-                f'{max_mem_consumption:.4f}', f'{sparsity:.4f}', net_precisions, guessed_type
+                f'{max_mem_consumption:.4f}', f'{sparsity:.4f}', net_precisions
             ]
         )
     log.info('File name with network status information : %s', file_name)
