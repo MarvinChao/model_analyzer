@@ -6,6 +6,7 @@ import logging as log
 import os
 from typing import List, Tuple
 import pandas as pd
+import numpy
 
 from model_analyzer.layer_provider import LayerTypesManager, LayerType, Constant, Result, Parameter
 from model_analyzer.model_metadata import ModelMetaData
@@ -30,9 +31,18 @@ class ModelComputationalComplexity:
                 'layer_name': layer_provider.name
             }
 
-            input_blob, output_blob = self.get_blob_sizes_and_precisions(layer_provider)
+            input_blob, output_blob = self.get_blob_sizes(layer_provider)
+            input_dims, output_dims = self.get_blob_dims(layer_provider)
+            input_vol, output_vol = self.get_blob_volumes(layer_provider)
+            input_precision, output_precision = self.get_blob_precisions(layer_provider)
             self._computational_complexity[layer_provider.name]['input_blob'] = input_blob
             self._computational_complexity[layer_provider.name]['output_blob'] = output_blob
+            self._computational_complexity[layer_provider.name]['input_dims'] = input_dims
+            self._computational_complexity[layer_provider.name]['output_dims'] = output_dims
+            self._computational_complexity[layer_provider.name]['input_vols'] = input_vol
+            self._computational_complexity[layer_provider.name]['output_vols'] = output_vol
+            self._computational_complexity[layer_provider.name]['input_precision'] = input_precision
+            self._computational_complexity[layer_provider.name]['output_precision'] = output_precision
 
         self._executable_precisions = list(net_precisions.union(self._model_metadata.int8precisions))
         self._params_const_layers = set()
@@ -109,6 +119,62 @@ class ModelComputationalComplexity:
 
         return in_blob, out_blob
 
+    def get_blob_sizes(self, layer_provider) -> tuple:
+        inputs = []
+        for i in range(layer_provider.get_inputs_number()):
+            input_shape_as_string = 'x'.join(map(str, layer_provider.get_input_shape(i)))
+            input_str = f'{input_shape_as_string}'
+            inputs.append(input_str)
+        in_blob = ' '.join(inputs)
+            
+        outputs = []
+        for i in range(layer_provider.get_outputs_number()):
+            output_shape_as_string = 'x'.join(map(str, layer_provider.get_output_shape(i)))
+            output_str = f'{output_shape_as_string}'
+            outputs.append(output_str)
+        out_blob = ' '.join(outputs)
+            
+        return in_blob, out_blob
+
+    def get_blob_dims(self, layer_provider) -> tuple:
+        inputs = []
+        for i in range(layer_provider.get_inputs_number()):
+            inputs.append(layer_provider.get_input_shape(i))
+
+        outputs = []
+        for i in range(layer_provider.get_outputs_number()):
+            outputs.append(layer_provider.get_output_shape(i))
+
+        return inputs, outputs
+
+    def get_blob_volumes(self, layer_provider) -> tuple:
+        iVol = []
+        for i in range(layer_provider.get_inputs_number()):
+            iVol.append(numpy.prod(layer_provider.get_input_shape(i)))
+
+        oVol = []
+        for i in range(layer_provider.get_outputs_number()):
+            oVol.append(numpy.prod(layer_provider.get_output_shape(i)))
+
+        return iVol, oVol
+
+    def get_blob_precisions(self, layer_provider) -> tuple:
+        inputs = []
+        for i in range(layer_provider.get_inputs_number()):
+            input_precision = layer_provider.get_input_precision(i)
+            input_str = f'{input_precision}'
+            inputs.append(input_str)
+        in_precision = ' '.join(inputs)
+        
+        outputs = []
+        for i in range(layer_provider.get_outputs_number()):
+            output_precision = layer_provider.get_output_precision(i)
+            output_str = f'{output_precision}'
+            outputs.append(output_str)
+        out_precision = ' '.join(outputs)
+        
+        return in_precision, out_precision
+
     def get_maximum_memory_consumption(self) -> int:
         total_memory_size = 0
         for layer_provider in self._layer_providers:
@@ -162,12 +228,12 @@ class ModelComputationalComplexity:
             if len(self._executable_precisions) == 1 else
             f'MIXED ({"-".join(sorted(self._executable_precisions))})'
         )
-        log.info('GFLOPs: %.4f', g_flops)
-        log.info('GIOPs: %.4f', g_iops)
-        log.info('MParams: %.4f', total_params)
-        log.info('Sparsity: %.4f%%', sparsity)
-        log.info('Minimum memory consumption (MB): %.4f', min_mem_consumption)
-        log.info('Maximum memory consumption (MB): %.4f', max_mem_consumption)
+        log.info('GFLOPs: %.6f', g_flops)
+        log.info('GIOPs: %.6f', g_iops)
+        log.info('MParams: %.6f', total_params)
+        log.info('Sparsity: %.6f%%', sparsity)
+        log.info('Minimum memory consumption (MB): %.6f', min_mem_consumption)
+        log.info('Maximum memory consumption (MB): %.6f', max_mem_consumption)
         export_network_into_xlsx(g_flops, g_iops, total_params, sparsity, min_mem_consumption, max_mem_consumption,
                                 net_precisions, output, file_name)
         if complexity:
@@ -179,7 +245,7 @@ class ModelComputationalComplexity:
         with open(file_name, mode='w') as info_file:
             info_writer = csv.writer(info_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             info_writer.writerow(
-                ['LayerType', 'LayerName', 'GFLOPs', 'GIOPs', 'MParams', 'LayerParams', 'InputBlobs', 'OutputBlobs']
+                ['LayerType', 'LayerName', 'GFLOPs', 'GIOPs', 'MParams', 'LayerParams', 'InputBlobs', 'OutputBlobs', 'InputPrecision', 'OutputPrecision']
             )
             layers_ids = self._model_metadata.ops_ids
             try:
@@ -194,12 +260,14 @@ class ModelComputationalComplexity:
                 info_writer.writerow([
                     cur_layer['layer_type'],
                     cur_layer['layer_name'],
-                    '{:.4f}'.format(float(cur_layer['g_flops'])),
-                    '{:.4f}'.format(float(cur_layer['g_iops'])),
-                    '{:.4f}'.format(float(cur_layer['m_params'])),
+                    '{:.6f}'.format(float(cur_layer['g_flops'])),
+                    '{:.6f}'.format(float(cur_layer['g_iops'])),
+                    '{:.6f}'.format(float(cur_layer['m_params'])),
                     cur_layer.get('layer_params'),
                     cur_layer['input_blob'],
                     cur_layer['output_blob'],
+                    cur_layer['input_precision'],
+                    cur_layer['output_precision'],
                 ])
         log.info('Complexity file name: %s', file_name)
 
@@ -222,12 +290,16 @@ class ModelComputationalComplexity:
             cur_layer_info = [
                     cur_layer['layer_type'],
                     cur_layer['layer_name'],
-                    '{:.4f}'.format(float(cur_layer['g_flops'])),
-                    '{:.4f}'.format(float(cur_layer['g_iops'])),
-                    '{:.4f}'.format(float(cur_layer['m_params'])),
+                    cur_layer['input_dims'],
+                    cur_layer['output_dims'],
+                    int(cur_layer['g_flops'] * 1000000),
+                    int(cur_layer['g_iops'] * 1000000),
+                    int(cur_layer['m_params'] * 1000000),
                     cur_layer.get('layer_params'),
-                    cur_layer['input_blob'],
-                    cur_layer['output_blob'],
+                    sum(cur_layer['input_vols']),
+                    sum(cur_layer['output_vols']),
+                    cur_layer['input_precision'],
+                    cur_layer['output_precision'],
                 ]
             if Layers_DF.index.empty:
                 Layers_DF = pd.DataFrame(cur_layer_info).transpose()
@@ -235,11 +307,11 @@ class ModelComputationalComplexity:
                 Layers_DF.loc[len(Layers_DF.index)] = cur_layer_info
 
             writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
-            Layers_DF.to_excel(writer, sheet_name='Summary', startrow=0, header=['LayerType', 'LayerName', 'GFLOPs', 'GIOPs', 'MParams', 'LayerParams', 'InputBlobs', 'OutputBlobs'], index=False)
+            Layers_DF.to_excel(writer, sheet_name='Summary', startrow=0, header=['LayerType', 'LayerName', 'Input Dimensions','Output Dimensions','FLOPs', 'IOPs', 'Params', 'LayerParams', 'Input Volumes', 'Output Volumes', 'InputPrecision', 'OutputPrecision'], index=False)
 
         # Improve Spreadsheet cosmetics
         Layer_WS = writer.sheets['Summary']
-        Layer_WS.set_column(0, 7, 20)
+        Layer_WS.set_column(0, 9, 20)
 
         writer.save()
 
