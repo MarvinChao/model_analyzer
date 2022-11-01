@@ -319,8 +319,10 @@ class ModelComputationalComplexity:
         try:
             total_flops = layer_provider.get_ops() * pow(10, -9)
         except NotImplementedError as error:
-            self._computational_complexity[layer_provider.name]['g_iops'] = -1
-            self._computational_complexity[layer_provider.name]['g_flops'] = -1
+            self._computational_complexity[layer_provider.name]['g_iops'] = 0
+            self._computational_complexity[layer_provider.name]['g_flops'] = 0
+#            self._computational_complexity[layer_provider.name]['g_iops'] = -1
+#            self._computational_complexity[layer_provider.name]['g_flops'] = -1
             raise error
         self._computational_complexity[layer_provider.name]['layer_params'] = get_layer_params(layer_provider)
         self._computational_complexity[layer_provider.name]['g_iops'] = (
