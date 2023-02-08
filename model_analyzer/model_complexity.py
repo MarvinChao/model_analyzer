@@ -150,11 +150,11 @@ class ModelComputationalComplexity:
     def get_blob_volumes(self, layer_provider) -> tuple:
         iVol = []
         for i in range(layer_provider.get_inputs_number()):
-            iVol.append(numpy.prod(layer_provider.get_input_shape(i)))
+            iVol.append(numpy.prod(numpy.absolute(layer_provider.get_input_shape(i))))
 
         oVol = []
         for i in range(layer_provider.get_outputs_number()):
-            oVol.append(numpy.prod(layer_provider.get_output_shape(i)))
+            oVol.append(numpy.prod(numpy.absolute(layer_provider.get_output_shape(i))))
 
         return iVol, oVol
 

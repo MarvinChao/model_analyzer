@@ -84,7 +84,7 @@ class LayerType(metaclass=MetaClass):
 
     @staticmethod
     def get_blob_size(shape: List[int]) -> int:
-        return reduce(operator.mul, shape, 1)
+        return abs(reduce(operator.mul, shape, 1))
 
     def get_outputs_number(self) -> int:
         return len(self.layer.outputs())
