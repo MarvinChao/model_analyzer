@@ -313,7 +313,7 @@ class ModelComputationalComplexity:
         Layer_WS = writer.sheets['Summary']
         Layer_WS.set_column(0, 9, 20)
 
-        writer.save()
+        writer.close()
 
     def get_ops(self, layer_provider: LayerType) -> int:
         try:
@@ -408,7 +408,7 @@ def export_network_into_xlsx(g_flops, g_iops, total_params, sparsity, min_mem_co
     Network_WS = writer.sheets['Summary']
     Network_WS.set_column(0, 6, 20)
 
-    writer.save()
+    writer.close()
 
 def get_layer_params(layer_provider: LayerType) -> str:
     params = []
